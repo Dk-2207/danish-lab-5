@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D3 Treemap – Pipeline Data Volume</title>
+<style>body{font-family:sans-serif;margin:20px;} h2{margin-bottom:4px} p.sub{margin-top:0;color:#555}</style>
+</head>
+<body>
+<h2>Pipeline Data Volume – Treemap</h2>
+<p class="sub">Rectangle area = number of records. Hover for details.</p><div id="graph" style="position:relative;display:inline-block"></div>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+
+function drawTreemap(sel) {
+  const width = 900, height = 480;
+  // Hierarchical data: Pipeline -> category (input source / processing stage) -> leaf (records)
+  const data = {
+    name: "Pipeline Data Volume",
+    children: [
+      {name: "Input Sources", children: [
+        {name: "Web Logs", value: 5000}, {name: "Mobile App", value: 3000}, {name: "CRM Export", value: 2000}
+      ]},
+      {name: "Processing Stages", children: [
+        {name: "Data Cleaning", value: 8500}, {name: "EDA", value: 8500},
+        {name: "Feature Engineering", value: 6000}, {name: "Model Training", value: 4800},
+        {name: "Evaluation", value: 6000}, {name: "Visualization", value: 3500},
+        {name: "Deployment", value: 5000}, {name: "Rejected Records", value: 1500}
+      ]}
+    ]
+  };
+  const fmt = d3.format(",");
+  const color = d3.scaleOrdinal().domain(["Input Sources", "Processing Stages"]).range(["#E45756", "#4C78A8"]);
+
+  // 1) d3.hierarchy structures the data and .sum() adds up leaf values for parents
+  const root = d3.hierarchy(data).sum(d => d.value).sort((a, b) => b.value - a.value);
+  // 2) d3.treemap() calculates x0,y0,x1,y1 for every node (paddingTop leaves room for group titles)
+  d3.treemap().size([width, height]).paddingOuter(4).paddingTop(22).paddingInner(2).round(true)(root);
+
+  const svg = d3.select(sel).append("svg")
+    .attr("width", width).attr("height", height)
+    .style("border", "1px solid #ccc").style("background", "#fff");
+
+  // Tooltip div
+  const tip = d3.select(sel).append("div")
+    .style("position", "absolute").style("pointer-events", "none").style("opacity", 0)
+    .style("background", "#222").style("color", "#fff").style("padding", "6px 10px")
+    .style("border-radius", "4px").style("font", "12px sans-serif");
+
+  // Category (level 1) rectangles with titles
+  const groups = svg.selectAll("g.group").data(root.children).join("g").attr("class", "group");
+  groups.append("rect")
+    .attr("x", d => d.x0).attr("y", d => d.y0).attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0)
+    .attr("fill", d => color(d.data.name)).attr("fill-opacity", 0.12)
+    .attr("stroke", d => color(d.data.name));
+  groups.append("text").attr("x", d => d.x0 + 6).attr("y", d => d.y0 + 15)
+    .text(d => `${d.data.name} (${fmt(d.value)})`)
+    .attr("font-family", "sans-serif").attr("font-size", 13).attr("font-weight", "bold").attr("fill", d => color(d.data.name));
+
+  // Leaf rectangles coloured by category
+  const leaf = svg.selectAll("g.leaf").data(root.leaves()).join("g").attr("class", "leaf")
+    .attr("transform", d => `translate(${d.x0},${d.y0})`);
+  leaf.append("rect")
+    .attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0)
+    .attr("fill", d => color(d.parent.data.name)).attr("stroke", "#fff")
+    .on("mouseover", function (event, d) {
+      d3.select(this).transition().duration(200)
+        .attr("fill", d3.color(color(d.parent.data.name)).brighter(0.7)).attr("stroke", "#222").attr("stroke-width", 2);
+      tip.style("opacity", 1).html(`<b>${d.data.name}</b><br>${fmt(d.value)} records<br>${(100 * d.value / root.value).toFixed(1)}% of total`);
+    })
+    .on("mousemove", function (event) {
+      const [x, y] = d3.pointer(event, svg.node().parentNode);
+      tip.style("left", (x + 14) + "px").style("top", (y + 14) + "px");
+    })
+    .on("mouseout", function (event, d) {
+      d3.select(this).transition().duration(200).attr("fill", color(d.parent.data.name)).attr("stroke", "#fff").attr("stroke-width", 1);
+      tip.style("opacity", 0);
+    });
+  // Labels (wrap onto two lines: name + value) - clipped to the rectangle
+  leaf.append("clipPath").attr("id", (d, i) => `clip-${sel.slice(1)}-${i}`)
+    .append("rect").attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0);
+  leaf.append("text").attr("clip-path", (d, i) => `url(#clip-${sel.slice(1)}-${i})`)
+    .style("pointer-events", "none").attr("font-family", "sans-serif").attr("fill", "#fff").attr("font-size", 12)
+    .selectAll("tspan").data(d => [d.data.name, fmt(d.value)]).join("tspan")
+    .attr("x", 6).attr("y", (d, i) => 17 + i * 15).attr("font-weight", (d, i) => i === 0 ? "bold" : "normal").text(d => d);
+}
+
+(function wait() {
+  if (window.d3) drawTreemap("#graph"); else setTimeout(wait, 50);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>D3 Sankey – Data Pipeline</title>
+<style>body{font-family:sans-serif;margin:20px;} h2{margin-bottom:4px} p.sub{margin-top:0;color:#555}</style>
+</head>
+<body>
+<h2>Data Pipeline – Sankey Diagram</h2>
+<p class="sub">Flow of records (values) from three sources through processing stages to deployment.</p><div id="graph" style="position:relative;display:inline-block"></div>
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12/dist/d3-sankey.min.js"></script>
+<script>
+
+function drawSankey(sel) {
+  const width = 900, height = 450;
+  const nodes = [
+    {name: "Web Logs"}, {name: "Mobile App"}, {name: "CRM Export"},
+    {name: "Data Cleaning"}, {name: "Rejected"}, {name: "EDA"},
+    {name: "Feature Engineering"}, {name: "Model Training"},
+    {name: "Evaluation"}, {name: "Visualization"}, {name: "Deployment"}
+  ];
+  const links = [
+    {source: "Web Logs", target: "Data Cleaning", value: 5000},
+    {source: "Mobile App", target: "Data Cleaning", value: 3000},
+    {source: "CRM Export", target: "Data Cleaning", value: 2000},
+    {source: "Data Cleaning", target: "EDA", value: 8500},
+    {source: "Data Cleaning", target: "Rejected", value: 1500},
+    {source: "EDA", target: "Feature Engineering", value: 6000},
+    {source: "EDA", target: "Visualization", value: 2500},
+    {source: "Feature Engineering", target: "Model Training", value: 4800},
+    {source: "Feature Engineering", target: "Evaluation", value: 1200},
+    {source: "Model Training", target: "Evaluation", value: 4800},
+    {source: "Evaluation", target: "Deployment", value: 5000},
+    {source: "Evaluation", target: "Visualization", value: 1000}
+  ];
+  const svg = d3.select(sel).append("svg")
+    .attr("width", width).attr("height", height)
+    .style("border", "1px solid #ccc").style("background", "#fff");
+
+  // d3.sankey() computes node positions and link thicknesses from the flow values
+  const graph = d3.sankey()
+    .nodeId(d => d.name).nodeWidth(16).nodePadding(20)
+    .extent([[10, 10], [width - 10, height - 10]])
+    ({nodes: nodes.map(d => ({...d})), links: links.map(d => ({...d}))});
+  const color = d3.scaleOrdinal(d3.schemeTableau10);
+  const fmt = d3.format(",");
+
+  svg.append("g").selectAll("path").data(graph.links).join("path")
+    .attr("d", d3.sankeyLinkHorizontal()).attr("fill", "none")
+    .attr("stroke", d => color(d.source.name))
+    .attr("stroke-opacity", 0.4).attr("stroke-width", d => Math.max(1, d.width))
+    .append("title").text(d => `${d.source.name} → ${d.target.name}: ${fmt(d.value)} records`);
+
+  const node = svg.append("g").selectAll("rect").data(graph.nodes).join("rect")
+    .attr("x", d => d.x0).attr("y", d => d.y0)
+    .attr("width", d => d.x1 - d.x0).attr("height", d => d.y1 - d.y0)
+    .attr("fill", d => color(d.name))
+    // Hover transition: node colour fades to a brighter shade over 200 ms
+    .on("mouseover", function (event, d) {
+      d3.select(this).transition().duration(200).attr("fill", d3.color(color(d.name)).brighter(0.7));
+    })
+    .on("mouseout", function (event, d) {
+      d3.select(this).transition().duration(200).attr("fill", color(d.name));
+    });
+  node.append("title").text(d => `${d.name}: ${fmt(d.value)} records`);
+
+  svg.append("g").selectAll("text").data(graph.nodes).join("text")
+    .text(d => d.name).attr("font-size", 11).attr("font-family", "sans-serif")
+    .attr("x", d => d.x0 < width / 2 ? d.x1 + 6 : d.x0 - 6)
+    .attr("y", d => (d.y0 + d.y1) / 2).attr("dy", "0.35em")
+    .attr("text-anchor", d => d.x0 < width / 2 ? "start" : "end");
+}
+
+(function wait() {
+  if (window.d3 && window.d3.sankey) drawSankey("#graph"); else setTimeout(wait, 50);
+})();
+</script>
+</body>
+</html>
